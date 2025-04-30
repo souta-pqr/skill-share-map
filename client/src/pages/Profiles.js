@@ -4,15 +4,16 @@ import {
   Container, Typography, Box, Button, TextField, Paper,
   Grid, Chip, Card, CardContent, CardActions, Divider,
   Dialog, DialogTitle, DialogContent, DialogActions,
-  FormControl, InputLabel, Select, MenuItem, Slider
+  FormControl, InputLabel, Select, MenuItem, Slider, Alert
 } from '@mui/material';
 import { AuthContext } from '../context/AuthContext';
 
 const Profile = () => {
-  const { user, loadUser, getToken } = useContext(AuthContext);
+  const { user, loadUser, getToken, isAuthenticated } = useContext(AuthContext);
   const [userSkills, setUserSkills] = useState([]);
   const [allSkills, setAllSkills] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -29,15 +30,22 @@ const Profile = () => {
   
   useEffect(() => {
     const fetchData = async () => {
+      if (!isAuthenticated || !getToken()) {
+        setLoading(false);
+        return;
+      }
+      
       try {
         // ユーザースキルの取得
-        const skillsRes = await axios.get(`${process.env.REACT_APP_API_URL}/users/me/skills`, {
+        const skillsRes = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/users/me/skills`, {
           headers: { 'x-auth-token': getToken() }
         });
+        console.log('User skills fetched:', skillsRes.data);
         setUserSkills(skillsRes.data);
         
         // すべてのスキルの取得
-        const allSkillsRes = await axios.get(`${process.env.REACT_APP_API_URL}/skills`);
+        const allSkillsRes = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/skills`);
+        console.log('All skills fetched:', allSkillsRes.data);
         setAllSkills(allSkillsRes.data);
         
         // ユーザー情報があれば、フォームデータを初期化
@@ -53,12 +61,13 @@ const Profile = () => {
         setLoading(false);
       } catch (err) {
         console.error('データ取得エラー:', err);
+        setError('スキルデータの取得中にエラーが発生しました。');
         setLoading(false);
       }
     };
     
     fetchData();
-  }, [user, getToken]);
+  }, [user, getToken, isAuthenticated]);
   
   // プロフィール編集モードの切り替え
   const toggleEditMode = () => {
@@ -87,7 +96,7 @@ const Profile = () => {
     e.preventDefault();
     
     try {
-      await axios.put(`${process.env.REACT_APP_API_URL}/users/me`, formData, {
+      await axios.put(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/users/me`, formData, {
         headers: { 'x-auth-token': getToken() }
       });
       
@@ -96,6 +105,7 @@ const Profile = () => {
       setEditMode(false);
     } catch (err) {
       console.error('プロフィール更新エラー:', err);
+      setError('プロフィールの更新中にエラーが発生しました。');
     }
   };
   
@@ -134,7 +144,7 @@ const Profile = () => {
     
     try {
       await axios.post(
-        `${process.env.REACT_APP_API_URL}/users/me/skills`,
+        `${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/users/me/skills`,
         {
           skill_id: selectedSkill,
           level: skillLevel,
@@ -146,7 +156,7 @@ const Profile = () => {
       );
       
       // スキル一覧を再取得
-      const skillsRes = await axios.get(`${process.env.REACT_APP_API_URL}/users/me/skills`, {
+      const skillsRes = await axios.get(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/users/me/skills`, {
         headers: { 'x-auth-token': getToken() }
       });
       setUserSkills(skillsRes.data);
@@ -155,13 +165,14 @@ const Profile = () => {
       handleCloseSkillDialog();
     } catch (err) {
       console.error('スキル追加エラー:', err);
+      setError('スキルの追加中にエラーが発生しました。');
     }
   };
   
   // スキル削除のハンドラ
   const handleDeleteSkill = async (skillId) => {
     try {
-      await axios.delete(`${process.env.REACT_APP_API_URL}/users/me/skills/${skillId}`, {
+      await axios.delete(`${process.env.REACT_APP_API_URL || 'http://localhost:5000/api'}/users/me/skills/${skillId}`, {
         headers: { 'x-auth-token': getToken() }
       });
       
@@ -169,6 +180,7 @@ const Profile = () => {
       setUserSkills(userSkills.filter(skill => skill.id !== skillId));
     } catch (err) {
       console.error('スキル削除エラー:', err);
+      setError('スキルの削除中にエラーが発生しました。');
     }
   };
   
@@ -177,12 +189,14 @@ const Profile = () => {
     skill => !userSkills.some(userSkill => userSkill.id === skill.id)
   );
   
-  if (loading) {
-    return <Typography>Loading...</Typography>;
-  }
-  
   return (
     <Container maxWidth="md">
+      {error && (
+        <Alert severity="error" sx={{ mt: 2, mb: 2 }}>
+          {error}
+        </Alert>
+      )}
+      
       <Paper elevation={3} sx={{ p: 4, mt: 4 }}>
         <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Typography variant="h4" component="h1">
@@ -304,12 +318,17 @@ const Profile = () => {
             variant="contained"
             color="primary"
             onClick={handleOpenSkillDialog}
+            disabled={!isAuthenticated}
           >
             スキル追加
           </Button>
         </Box>
         
-        {userSkills.length === 0 ? (
+        {loading ? (
+          <Typography>スキル情報を読み込み中...</Typography>
+        ) : !isAuthenticated ? (
+          <Typography>スキルを管理するにはログインしてください</Typography>
+        ) : userSkills.length === 0 ? (
           <Typography>登録されているスキルはありません。スキルを追加しましょう。</Typography>
         ) : (
           <Grid container spacing={2}>

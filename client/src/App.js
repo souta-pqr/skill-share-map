@@ -13,7 +13,7 @@ import PrivateRoute from './components/PrivateRoute';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import Profile from './pages/Profile';
+import Profile from './pages/Profiles';
 import SkillMap from './pages/SkillMap';
 import ProjectList from './pages/ProjectList';
 import ProjectCreate from './pages/ProjectCreate';
